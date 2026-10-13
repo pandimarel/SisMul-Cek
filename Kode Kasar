@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRAINWATCH - Dashboard (Tel-U & Bojongsoang)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS & JS for Real HD Map Rendering -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .leaflet-container { font-family: 'Inter', sans-serif; z-index: 10; }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #6366f1;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+        }
+        .custom-popup .leaflet-popup-content-wrapper {
+            padding: 0;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px -10px rgba(99, 102, 241, 0.2);
+            border: 1px solid #e0e7ff;
+        }
+        .custom-popup .leaflet-popup-content { margin: 0; width: 280px !important; }
+        .pulse-marker-high {
+            animation: pulse-high 1.8s infinite;
+        }
+        @keyframes pulse-high {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(251, 113, 133, 0.6); }
+            70% { transform: scale(1.18); box-shadow: 0 0 0 16px rgba(251, 113, 133, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(251, 113, 133, 0); }
+        }
+        @media print {
+            body { background: white !important; }
+            header, nav, button, .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-[#f4f7fc] text-slate-700 antialiased min-h-full flex flex-col selection:bg-indigo-200 selection:text-indigo-900">
+
+    <header class="bg-white/90 backdrop-blur-md text-slate-800 border-b border-indigo-100 px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-50">
+        <div class="flex items-center space-x-3.5">
+            <div class="bg-gradient-to-tr from-indigo-600 via-sky-500 to-teal-400 text-white p-2.5 rounded-2xl flex items-center justify-center font-bold shadow-md shadow-indigo-200">
+                <i class="fa-solid fa-water text-xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-sky-600 to-teal-600">DRAINWATCH</span>
+                    <span class="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-0.5 rounded-full border border-indigo-200">Full-Page Master v2.5</span>
+                </div>
+                <p class="text-[11px] text-slate-500"><i class="fa-solid fa-microchip text-indigo-500 mr-1"></i> Telkom University & Bojongsoang Intelligent Drainage Risk Engine</p>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="hidden md:flex items-center space-x-1 bg-indigo-50/60 p-1.5 rounded-2xl border border-indigo-100 text-xs font-semibold">
+            <button onclick="switchTab('map')" id="navTabMap" class="bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-sm transition flex items-center space-x-2">
+                <i class="fa-solid fa-map-location-dot"></i>
+                <span>Peta Interaktif HD</span>
+            </button>
+            <button onclick="switchTab('simulator')" id="navTabSimulator" class="text-slate-600 hover:text-indigo-600 px-4 py-2 hover:bg-indigo-100/50 rounded-xl transition flex items-center space-x-2">
+                <i class="fa-solid fa-calculator"></i>
+                <span>Risk Engine & Simulator</span>
+            </button>
+            <button onclick="switchTab('pipeline')" id="navTabPipeline" class="text-slate-600 hover:text-indigo-600 px-4 py-2 hover:bg-indigo-100/50 rounded-xl transition flex items-center space-x-2">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>Pipeline & Vault</span>
+            </button>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <button onclick="toggleFullScreen()" class="bg-white hover:bg-indigo-50 text-slate-700 px-3.5 py-2 rounded-xl border border-indigo-200 text-xs font-semibold flex items-center space-x-2 transition shadow-sm">
+                <i class="fa-solid fa-expand text-indigo-500"></i>
+                <span class="hidden sm:inline">Layar Penuh</span>
+            </button>
+            <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition shadow-md shadow-indigo-200">
+                <i class="fa-solid fa-download"></i>
+                <span>Cetak Laporan</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 p-4 md:p-6 max-w-[1750px] w-full mx-auto space-y-6">
+
+        <!-- Mobile Tab Switcher -->
+        <div class="flex md:hidden bg-white p-2 rounded-2xl border border-indigo-100 shadow-sm justify-around text-xs font-bold">
+            <button onclick="switchTab('map')" id="mNavMap" class="py-2 px-3 bg-indigo-600 text-white rounded-xl">Peta HD</button>
+            <button onclick="switchTab('simulator')" id="mNavSim" class="py-2 px-3 text-slate-600 rounded-xl">Simulator</button>
+            <button onclick="switchTab('pipeline')" id="mNavPipe" class="py-2 px-3 text-slate-600 rounded-xl">Pipeline</button>
+        </div>
+
+        <!-- VIEW 1: INTERACTIVE MAP (Default Active) -->
+        <div id="viewMap" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <section class="lg:col-span-8 bg-white rounded-3xl border border-indigo-100 shadow-lg overflow-hidden flex flex-col relative min-h-[620px]">
+                <!-- Map Header Overlay -->
+                <div class="p-4 bg-indigo-50/80 backdrop-blur-md border-b border-indigo-100 flex flex-wrap items-center justify-between gap-3 z-20">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-map text-indigo-600"></i>
+                        <h2 class="font-bold text-sm text-slate-800">Peta Sebaran Titik Risiko Drainase Telkom University & Bojongsoang</h2>
+                    </div>
+                    <!-- Risk Filter Buttons -->
+                    <div class="flex items-center space-x-1.5 text-xs">
+                        <span class="text-slate-500 text-[11px] hidden sm:inline">Filter:</span>
+                        <button onclick="filterMap('all')" class="bg-white hover:bg-indigo-100 px-3 py-1 rounded-lg border border-indigo-200 font-medium transition shadow-sm">Semua</button>
+                        <button onclick="filterMap('high')" class="bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-200 px-3 py-1 rounded-lg font-medium transition flex items-center space-x-1 shadow-sm">
+                            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                            <span>Tinggi</span>
+                        </button>
+                        <button onclick="filterMap('warning')" class="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 px-3 py-1 rounded-lg font-medium transition flex items-center space-x-1 shadow-sm">
+                            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                            <span>Sedang</span>
+                        </button>
+                        <button onclick="filterMap('normal')" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-lg font-medium transition flex items-center space-x-1 shadow-sm">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span>Normal</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Floating Search & Layer Switcher -->
+                <div class="absolute top-20 left-4 z-20 w-72">
+                    <div class="relative shadow-lg rounded-xl overflow-hidden border border-indigo-200 bg-white/95">
+                        <input type="text" id="mapSearch" placeholder="Cari titik drainase..." class="w-full pl-9 pr-8 py-2.5 bg-transparent text-slate-700 text-xs focus:outline-none">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                    </div>
+                </div>
+
+                <div class="absolute top-20 right-4 z-20 bg-white/95 backdrop-blur-md rounded-xl p-1 border border-indigo-200 shadow-lg flex space-x-1">
+                    <button onclick="switchTileLayer('satellite')" id="btnSat" class="px-3 py-1 text-[11px] font-semibold rounded-lg bg-indigo-600 text-white shadow-sm transition">Satelit</button>
+                    <button onclick="switchTileLayer('street')" id="btnStreet" class="px-3 py-1 text-[11px] font-semibold rounded-lg text-slate-600 hover:text-indigo-600 transition">Jalan</button>
+                </div>
+
+                <!-- Leaflet Map Canvas Container -->
+                <div id="map" class="w-full flex-1 min-h-[540px]"></div>
+
+                <div class="bg-indigo-50/70 text-slate-600 px-4 py-2.5 border-t border-indigo-100 text-[11px] flex items-center justify-between z-20">
+                    <span><i class="fa-solid fa-location-dot text-indigo-500 mr-1"></i> Koordinat Pusat: -6.9740, 107.6305 (Tel-U Bojongsoang)</span>
+                    <span class="text-indigo-600 font-mono font-bold">Sentinel-2 HD Active</span>
+                </div>
+            </section>
+
+            <!-- Map Side Panel: Quick Telemetry & Stats -->
+            <section class="lg:col-span-4 flex flex-col space-y-6">
+                <div class="bg-white rounded-3xl p-6 border border-indigo-100 shadow-lg space-y-5">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-slate-800 text-sm">Ringkasan Telemetri Kawasan</h3>
+                        <span class="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-2.5 py-1 rounded-full border border-emerald-200">Live IoT</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-center">
+                            <span class="text-xs text-slate-500 block mb-1">Curah Hujan</span>
+                            <span class="text-xl font-black text-indigo-600">60 mm/j</span>
+                            <span class="text-[10px] text-amber-600 font-semibold block mt-1">Hujan Lebat</span>
+                        </div>
+                        <div class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-center">
+                            <span class="text-xs text-slate-500 block mb-1">Titik Kritis</span>
+                            <span class="text-xl font-black text-rose-500">4 Titik</span>
+                            <span class="text-[10px] text-rose-500 font-semibold block mt-1">Perlu Pengerukan</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 pt-2">
+                        <span class="text-xs font-bold text-slate-700 block uppercase tracking-wider">Akses Cepat Titik Utama:</span>
+                        
+                        <div onclick="focusPin(0)" class="p-3 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition flex items-center justify-between">
+                            <div>
+                                <span class="font-bold text-slate-800 text-xs block">Titik A-01: Jl. Telekomunikasi</span>
+                                <span class="text-[10px] text-rose-500 font-semibold">Penyumbatan: 88% (Tinggi)</span>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-xs text-slate-400"></i>
+                        </div>
+
+                        <div onclick="focusPin(1)" class="p-3 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition flex items-center justify-between">
+                            <div>
+                                <span class="font-bold text-slate-800 text-xs block">Titik B-04: Jalan Sukapura</span>
+                                <span class="text-[10px] text-rose-500 font-semibold">Penyumbatan: 82% (Tinggi)</span>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-xs text-slate-400"></i>
+                        </div>
+
+                        <div onclick="focusPin(2)" class="p-3 bg-slate-50 hover:bg-indigo-50 rounded-2xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition flex items-center justify-between">
+                            <div>
+                                <span class="font-bold text-slate-800 text-xs block">Titik C-02: Gedung TULT Tel-U</span>
+                                <span class="text-[10px] text-emerald-600 font-semibold">Penyumbatan: 8% (Normal)</span>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-xs text-slate-400"></i>
+                        </div>
+                    </div>
+
+                    <button onclick="switchTab('simulator')" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl shadow-md transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-calculator"></i>
+                        <span>Buka Kalkulator Multi-Factor Risiko</span>
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- VIEW 2: MULTI-FACTOR RISK CALCULATOR & SIMULATOR -->
+        <div id="viewSimulator" class="hidden grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Left Inputs Panel -->
+            <section class="lg:col-span-7 flex flex-col space-y-6">
+                <div class="bg-indigo-600 text-white p-5 rounded-3xl shadow-lg flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-sky-300"></i> Simulator & Parameter Input Risiko
+                        </h2>
+                        <p class="text-xs text-indigo-100 mt-1">Sesuaikan variabel untuk menghitung skor risiko & rekomendasi otomatis</p>
+                    </div>
+                    <button onclick="resetInputs()" class="text-xs bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl backdrop-blur-md transition">
+                        <i class="fa-solid fa-rotate-left mr-1"></i> Reset
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Card 1: Visual Blockage -->
+                    <div class="bg-white rounded-3xl p-5 border border-indigo-100 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2.5 py-1 rounded-lg">Faktor 1</span>
+                                <span class="text-xs text-slate-400 font-semibold"><i class="fa-solid fa-camera text-indigo-400 mr-1"></i> Visual CV</span>
+                            </div>
+                            <h3 class="font-bold text-slate-800 text-sm mb-1">Penyumbatan Visual Drainase</h3>
+                            <p class="text-xs text-slate-500 mb-4">Estimasi Computer Vision dari foto/video unggahan</p>
+
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-xs font-semibold">
+                                    <span>Tingkat Penyumbatan:</span>
+                                    <span id="blockageValue" class="text-indigo-600 font-bold">75%</span>
+                                </div>
+                                <input type="range" id="blockageSlider" min="0" max="100" value="75" oninput="updateCalculation()" class="w-full h-2 bg-slate-200 rounded-lg appearance-none slider-thumb cursor-pointer">
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                            <span>Bobot Matriks:</span>
+                            <span class="font-bold text-slate-700">35%</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Rainfall -->
+                    <div class="bg-white rounded-3xl p-5 border border-indigo-100 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-bold text-sky-600 uppercase tracking-wider bg-sky-50 px-2.5 py-1 rounded-lg">Faktor 2</span>
+                                <span class="text-xs text-slate-400 font-semibold"><i class="fa-solid fa-cloud-showers-heavy text-sky-400 mr-1"></i> Telemetri</span>
+                            </div>
+                            <h3 class="font-bold text-slate-800 text-sm mb-1">Intensitas Curah Hujan</h3>
+                            <p class="text-xs text-slate-500 mb-4">Pengukuran real-time stasiun cuaca terdekat</p>
+
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-xs font-semibold">
+                                    <span>Curah Hujan (mm/jam):</span>
+                                    <span id="rainValue" class="text-sky-600 font-bold">60 mm/j</span>
+                                </div>
+                                <input type="range" id="rainSlider" min="0" max="150" value="60" oninput="updateCalculation()" class="w-full h-2 bg-slate-200 rounded-lg appearance-none slider-thumb cursor-pointer">
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                            <span>Bobot Matriks:</span>
+                            <span class="font-bold text-slate-700">25%</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Water Level -->
+                    <div class="bg-white rounded-3xl p-5 border border-indigo-100 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-bold text-teal-600 uppercase tracking-wider bg-teal-50 px-2.5 py-1 rounded-lg">Faktor 3</span>
+                                <span class="text-xs text-slate-400 font-semibold"><i class="fa-solid fa-water text-teal-400 mr-1"></i> Sensor IoT</span>
+                            </div>
+                            <h3 class="font-bold text-slate-800 text-sm mb-1">Ketinggian Air Drainase</h3>
+                            <p class="text-xs text-slate-500 mb-4">Ukur jarak air relatif terhadap bibir saluran</p>
+
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-xs font-semibold">
+                                    <span>Ketinggian Air (%):</span>
+                                    <span id="waterValue" class="text-teal-600 font-bold">70%</span>
+                                </div>
+                                <input type="range" id="waterSlider" min="0" max="100" value="70" oninput="updateCalculation()" class="w-full h-2 bg-slate-200 rounded-lg appearance-none slider-thumb cursor-pointer">
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                            <span>Bobot Matriks:</span>
+                            <span class="font-bold text-slate-700">25%</span>
+                        </div>
+                    </div>
+
+                    <!-- Card 4: Historical Data -->
+                    <div class="bg-white rounded-3xl p-5 border border-indigo-100 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-bold text-purple-600 uppercase tracking-wider bg-purple-50 px-2.5 py-1 rounded-lg">Faktor 4</span>
+                                <span class="text-xs text-slate-400 font-semibold"><i class="fa-solid fa-clock-rotate-left text-purple-400 mr-1"></i> Historis</span>
+                            </div>
+                            <h3 class="font-bold text-slate-800 text-sm mb-1">Pilih Titik Drainase / Lokasi</h3>
+                            <p class="text-xs text-slate-500 mb-4">Memuat riwayat genangan 3 tahun terakhir</p>
+
+                            <div class="mb-4">
+                                <select id="locationSelect" onchange="updateLocationHistory()" class="w-full p-2.5 bg-slate-50 border border-indigo-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none">
+                                    <option value="A01" selected>Titik A-01: Jl. Telekomunikasi (Tel-U)</option>
+                                    <option value="B04">Titik B-04: Jalan Sukapura (Kost)</option>
+                                    <option value="C02">Titik C-02: Gedung TULT Tel-U</option>
+                                    <option value="F03">Titik F-03: Outlet Citarum Bojongsoang</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                            <span>Bobot Matriks:</span>
+                            <span class="font-bold text-slate-700">15%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Output Engine Panel -->
+            <section class="lg:col-span-5 flex flex-col space-y-6">
+                <div class="bg-white rounded-3xl border border-indigo-100 p-6 shadow-lg relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wide">Skor Risiko Terhitung</span>
+                        <span class="bg-slate-100 text-slate-600 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">Algoritma Matriks</span>
+                    </div>
+
+                    <div class="flex flex-col items-center justify-center py-4">
+                        <div class="relative w-40 h-40 flex items-center justify-center">
+                            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                <path class="text-slate-100" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                <path id="scoreCircle" class="text-rose-500 transition-all duration-700 ease-out" stroke-dasharray="77, 100" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                            </svg>
+                            <div class="absolute flex flex-col items-center">
+                                <span id="finalScore" class="text-4xl font-black text-slate-800">77</span>
+                                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">/ 100</span>
+                            </div>
+                        </div>
+
+                        <div id="riskLevelBadge" class="mt-4 px-4 py-1.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                            <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                            <span id="riskLevelText">Bahaya / Risiko Tinggi</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs space-y-2">
+                        <span class="font-bold text-slate-700 block mb-1">Rincian Kontribusi Skor:</span>
+                        <div class="flex justify-between text-slate-600">
+                            <span>Penyumbatan Visual (35%):</span>
+                            <span id="contribBlock" class="font-semibold text-slate-800">+26.3</span>
+                        </div>
+                        <div class="flex justify-between text-slate-600">
+                            <span>Curah Hujan (25%):</span>
+                            <span id="contribRain" class="font-semibold text-slate-800">+10.0</span>
+                        </div>
+                        <div class="flex justify-between text-slate-600">
+                            <span>Ketinggian Air (25%):</span>
+                            <span id="contribWater" class="font-semibold text-slate-800">+17.5</span>
+                        </div>
+                        <div class="flex justify-between text-slate-600">
+                            <span>Riwayat Lokasi (15%):</span>
+                            <span id="contribHist" class="font-semibold text-slate-800">+12.8</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommendation Card -->
+                <div id="recommendationCard" class="bg-gradient-to-br from-rose-50 via-white to-amber-50 rounded-3xl border-2 border-rose-200 p-6 shadow-lg flex-1 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center space-x-2.5 mb-3">
+                            <div id="alertIconBox" class="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-bold shadow-md shadow-rose-200">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-extrabold text-rose-500 uppercase tracking-widest block">Status Peringatan Dini</span>
+                                <h3 id="alertTitle" class="font-black text-slate-800 text-sm">PERINGATAN BANJIR / GENANGAN TINGGI</h3>
+                            </div>
+                        </div>
+
+                        <p id="alertSummary" class="text-xs text-slate-600 mb-4 leading-relaxed font-medium">
+                            Kombinasi penyumbatan sedimen tebal, intensitas hujan lebat, dan ketinggian air kritis mengindikasikan potensi meluapnya saluran dalam 15-30 menit ke depan.
+                        </p>
+                    </div>
+                    <button onclick="dispatchAlert()" class="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs rounded-2xl shadow-md transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>Kirim Eskalasi ke Petugas Lapangan</span>
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- VIEW 3: SECURE PIPELINE & VAULT -->
+        <div id="viewPipeline" class="hidden grid-cols-1 gap-6">
+            <div class="bg-white rounded-3xl p-6 border border-indigo-100 shadow-lg space-y-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                            <i class="fa-solid fa-shield-halved text-lg"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">Pipeline Media & Proteksi Arsip Terenkripsi</h3>
+                            <p class="text-xs text-slate-500">Alur Ingestion, Analisis CV, Transfer Server, & Secure Vault (.vault.sig)</p>
+                        </div>
+                    </div>
+                    <button onclick="runSecurePipeline()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition shadow-md shadow-indigo-200 flex items-center space-x-2">
+                        <i class="fa-solid fa-play"></i>
+                        <span>Jalankan Pipeline Sekarang</span>
+                    </button>
+                </div>
+
+                <!-- Pipeline Steps Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div id="pipeStep1" class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center transition">
+                        <div class="w-8 h-8 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xs font-bold">1</div>
+                        <span class="font-bold text-slate-700 text-xs block mb-1">Inbound Media</span>
+                        <p class="text-[10px] text-slate-400">Unggah foto/video drainase mentah (.mp4 / .jpg)</p>
+                    </div>
+                    <div id="pipeStep2" class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center transition">
+                        <div class="w-8 h-8 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xs font-bold">2</div>
+                        <span class="font-bold text-slate-700 text-xs block mb-1">Analisis CV</span>
+                        <p class="text-[10px] text-slate-400">Ekstraksi frame & deteksi tingkat sedimentasi</p>
+                    </div>
+                    <div id="pipeStep3" class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center transition">
+                        <div class="w-8 h-8 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xs font-bold">3</div>
+                        <span class="font-bold text-slate-700 text-xs block mb-1">Transfer Server</span>
+                        <p class="text-[10px] text-slate-400">Sinkronisasi payload ke Cloud Server Tel-U</p>
+                    </div>
+                    <div id="pipeStep4" class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center transition">
+                        <div class="w-8 h-8 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xs font-bold">4</div>
+                        <span class="font-bold text-slate-700 text-xs block mb-1">Vault Terproteksi</span>
+                        <p class="text-[10px] text-slate-400">Enkripsi AES-256 & File Signature (.vault.sig)</p>
+                    </div>
+                </div>
+
+                <!-- Terminal Log Box -->
+                <div class="bg-slate-900 text-emerald-400 font-mono text-xs p-5 rounded-2xl h-40 overflow-y-auto flex flex-col justify-between border border-slate-800">
+                    <div id="pipelineLogs" class="space-y-1">
+                        <div>[SYSTEM READY] Menunggu eksekusi pipeline media drainase...</div>
+                    </div>
+                    <div class="text-slate-500 text-[11px] pt-3 border-t border-slate-800 flex justify-between">
+                        <span>Secure Protocol: TLS 1.3 & AES-256-GCM</span>
+                        <span id="vaultFileStatus">File Vault: Belum Dibuat</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal Popup for Reports -->
+    <div id="reportModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-white rounded-3xl shadow-2xl border border-indigo-100 max-w-lg w-full overflow-hidden">
+            <div class="bg-indigo-50 text-slate-800 p-5 flex items-center justify-between border-b border-indigo-100">
+                <div class="flex items-center space-x-2.5">
+                    <i class="fa-solid fa-microchip text-indigo-600 text-lg"></i>
+                    <h3 class="font-bold text-sm text-slate-800" id="modalTitle">Detail Hasil Inspeksi Drainase</h3>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4 text-xs">
+                    <div class="bg-indigo-50/50 p-3.5 rounded-2xl border border-indigo-100">
+                        <span class="text-slate-500 block mb-1">Penyumbatan</span>
+                        <span id="modalBlockage" class="text-base font-extrabold text-slate-800">--</span>
+                    </div>
+                    <div class="bg-indigo-50/50 p-3.5 rounded-2xl border border-indigo-100">
+                        <span class="text-slate-500 block mb-1">Status Risiko</span>
+                        <span id="modalStatus" class="text-base font-extrabold text-rose-500">--</span>
+                    </div>
+                </div>
+                <p id="modalDesc" class="text-xs text-slate-600 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 leading-relaxed">--</p>
+                <div class="flex justify-end space-x-3 pt-2">
+                    <button onclick="closeModal()" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">Tutup</button>
+                    <button onclick="window.print()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl transition">Cetak Laporan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let activeTileLayer;
+        let markers = [];
+        const TELU_COORDS = [-6.9740, 107.6305];
+
+        const tiles = {
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Telkom University Bojongsoang'
+            }),
+            street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            })
+        };
+
+        const pinLocations = [
+            { id: "Titik A-01", name: "Jl. Telekomunikasi (Gerbang Tel-U)", lat: -6.9730, lng: 107.6300, risk: "high", blockage: "88%", desc: "Tumpukan sampah plastik tebal & sedimen tinggi di gorong-gorong gerbang utama." },
+            { id: "Titik B-04", name: "Jalan Sukapura (Kawasan Kost)", lat: -6.9705, lng: 107.6340, risk: "high", blockage: "82%", desc: "Sedimentasi tinggi akibat aliran domestik pemukiman Sukapura." },
+            { id: "Titik C-02", name: "Gedung TULT Telkom University", lat: -6.9718, lng: 107.6318, risk: "normal", blockage: "8%", desc: "Saluran air tertata rapi & bebas hambatan di area TULT." },
+            { id: "Titik D-07", name: "Jl. Terusan Buah Batu - Bojongsoang", lat: -6.9665, lng: 107.6335, risk: "warning", blockage: "52%", desc: "Penyempitan penampang saluran utama persimpangan jalan nasional." },
+            { id: "Titik F-03", name: "Outlet Citarum Bojongsoang", lat: -6.9785, lng: 107.6280, risk: "high", blockage: "91%", desc: "Backwater dari muara Sungai Citarum saat curah hujan tinggi." }
+        ];
+
+        const locationHistories = {
+            'A01': { frequency: 'Tinggi (8x / tahun)', score: 85 },
+            'B04': { frequency: 'Sangat Tinggi (12x / tahun)', score: 95 },
+            'C02': { frequency: 'Rendah (1x / tahun)', score: 20 },
+            'F03': { frequency: 'Sangat Tinggi (15x / tahun)', score: 90 }
+        };
+
+        window.onload = function() {
+            // Initialize Map
+            map = L.map('map', { center: TELU_COORDS, zoom: 15, zoomControl: false });
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            activeTileLayer = tiles.satellite;
+            activeTileLayer.addTo(map);
+
+            renderPins(pinLocations);
+            updateCalculation();
+        };
+
+        function switchTab(tabName) {
+            const vMap = document.getElementById('viewMap');
+            const vSim = document.getElementById('viewSimulator');
+            const vPipe = document.getElementById('viewPipeline');
+
+            const tMap = document.getElementById('navTabMap');
+            const tSim = document.getElementById('navTabSimulator');
+            const tPipe = document.getElementById('navTabPipeline');
+
+            [vMap, vSim, vPipe].forEach(el => el.classList.add('hidden'));
+            [tMap, tSim, tPipe].forEach(el => {
+                el.className = "text-slate-600 hover:text-indigo-600 px-4 py-2 hover:bg-indigo-100/50 rounded-xl transition flex items-center space-x-2";
+            });
+
+            if (tabName === 'map') {
+                vMap.classList.remove('hidden');
+                tMap.className = "bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-sm transition flex items-center space-x-2";
+                setTimeout(() => map.invalidateSize(), 200);
+            } else if (tabName === 'simulator') {
+                vSim.classList.remove('hidden');
+                tSim.className = "bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-sm transition flex items-center space-x-2";
+            } else if (tabName === 'pipeline') {
+                vPipe.classList.remove('hidden');
+                tPipe.className = "bg-indigo-600 text-white px-4 py-2 rounded-xl shadow-sm transition flex items-center space-x-2";
+            }
+        }
+
+        function createCustomPin(risk) {
+            let color = risk === 'high' ? 'bg-rose-200 text-rose-700 pulse-marker-high ring-rose-300' :
+                        risk === 'warning' ? 'bg-amber-200 text-amber-800 ring-amber-300' : 'bg-emerald-200 text-emerald-800 ring-emerald-300';
+            let icon = risk === 'high' ? 'fa-triangle-exclamation' : risk === 'warning' ? 'fa-circle-exclamation' : 'fa-check';
+
+            return L.divIcon({
+                className: 'custom-div',
+                html: `<div class="w-9 h-9 ${color} rounded-full flex items-center justify-center shadow-lg ring-4 cursor-pointer font-bold"><i class="fa-solid ${icon} text-xs"></i></div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
+            });
+        }
+
+        function renderPins(data) {
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            data.forEach(pin => {
+                const marker = L.marker([pin.lat, pin.lng], { icon: createCustomPin(pin.risk) }).addTo(map);
+                marker.bindPopup(`
+                    <div class="p-4 bg-white text-slate-800">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-bold text-xs text-indigo-600">${pin.id}</span>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded ${pin.risk === 'high' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}">${pin.risk.toUpperCase()}</span>
+                        </div>
+                        <p class="text-xs font-bold mb-1">${pin.name}</p>
+                        <p class="text-[11px] text-slate-500 mb-3">${pin.desc}</p>
+                        <button onclick="showReport('${pin.id} (${pin.name})', '${pin.blockage}', '${pin.risk.toUpperCase()}', '${pin.desc}')" class="w-full bg-indigo-600 text-white text-[11px] font-semibold py-2 rounded-xl">Lihat Laporan HD</button>
+                    </div>
+                `, { className: 'custom-popup' });
+                markers.push(marker);
+            });
+        }
+
+        function focusPin(index) {
+            if (markers[index]) {
+                map.setView([pinLocations[index].lat, pinLocations[index].lng], 17, { animate: true });
+                markers[index].openPopup();
+            }
+        }
+
+        function switchTileLayer(type) {
+            map.removeLayer(activeTileLayer);
+            activeTileLayer = tiles[type];
+            activeTileLayer.addTo(map);
+            document.getElementById('btnSat').className = type === 'satellite' ? 'px-3 py-1 text-[11px] font-semibold rounded-lg bg-indigo-600 text-white shadow-sm transition' : 'px-3 py-1 text-[11px] font-semibold rounded-lg text-slate-600 transition';
+            document.getElementById('btnStreet').className = type === 'street' ? 'px-3 py-1 text-[11px] font-semibold rounded-lg bg-indigo-600 text-white shadow-sm transition' : 'px-3 py-1 text-[11px] font-semibold rounded-lg text-slate-600 transition';
+        }
+
+        function filterMap(risk) {
+            if (risk === 'all') renderPins(pinLocations);
+            else renderPins(pinLocations.filter(p => p.risk === risk));
+        }
+
+        function updateCalculation() {
+            const blockage = parseInt(document.getElementById('blockageSlider').value);
+            const rain = parseInt(document.getElementById('rainSlider').value);
+            const water = parseInt(document.getElementById('waterSlider').value);
+            const locKey = document.getElementById('locationSelect').value;
+            const histScore = locationHistories[locKey].score;
+
+            document.getElementById('blockageValue').innerText = `${blockage}%`;
+            document.getElementById('rainValue').innerText = `${rain} mm/j`;
+            document.getElementById('waterValue').innerText = `${water}%`;
+
+            const rainNorm = Math.min(100, (rain / 100) * 100);
+            const cBlock = blockage * 0.35;
+            const cRain = rainNorm * 0.25;
+            const cWater = water * 0.25;
+            const cHist = histScore * 0.15;
+            const totalScore = Math.round(cBlock + cRain + cWater + cHist);
+
+            document.getElementById('contribBlock').innerText = `+${cBlock.toFixed(1)}`;
+            document.getElementById('contribRain').innerText = `+${cRain.toFixed(1)}`;
+            document.getElementById('contribWater').innerText = `+${cWater.toFixed(1)}`;
+            document.getElementById('contribHist').innerText = `+${cHist.toFixed(1)}`;
+            document.getElementById('finalScore').innerText = totalScore;
+            document.getElementById('scoreCircle').setAttribute('stroke-dasharray', `${totalScore}, 100`);
+        }
+
+        function updateLocationHistory() {
+            updateCalculation();
+        }
+
+        function resetInputs() {
+            document.getElementById('blockageSlider').value = 75;
+            document.getElementById('rainSlider').value = 60;
+            document.getElementById('waterSlider').value = 70;
+            document.getElementById('locationSelect').value = 'A01';
+            updateCalculation();
+        }
+
+        function runSecurePipeline() {
+            const logs = document.getElementById('pipelineLogs');
+            const s1 = document.getElementById('pipeStep1');
+            const s2 = document.getElementById('pipeStep2');
+            const s3 = document.getElementById('pipeStep3');
+            const s4 = document.getElementById('pipeStep4');
+            const status = document.getElementById('vaultFileStatus');
+
+            logs.innerHTML = `<div>[0.0s] Memulai Ingestion Media Drainase...</div>`;
+            setTimeout(() => {
+                s1.className = "p-4 bg-sky-50 rounded-2xl border border-sky-300 text-center";
+                logs.innerHTML += `<div>[0.4s] Media masuk terverifikasi: frame_stream.mp4</div>`;
+            }, 500);
+            setTimeout(() => {
+                s2.className = "p-4 bg-indigo-50 rounded-2xl border border-indigo-300 text-center";
+                logs.innerHTML += `<div>[1.2s] Menjalankan OpenCV Computer Vision: Sedimentasi (88%)...</div>`;
+            }, 1200);
+            setTimeout(() => {
+                s3.className = "p-4 bg-amber-50 rounded-2xl border border-amber-300 text-center";
+                logs.innerHTML += `<div>[2.0s] Transfer payload ke Cloud Server Tel-U...</div>`;
+            }, 2000);
+            setTimeout(() => {
+                s4.className = "p-4 bg-emerald-50 rounded-2xl border border-emerald-300 text-center";
+                logs.innerHTML += `<div>[2.8s] Enkripsi selesai! File vault dibuat: <span class="text-white font-bold">drainase_A01.vault.sig</span></div>`;
+                status.innerHTML = `File Vault: <span class="text-emerald-400 font-bold">drainase_A01.vault.sig (Protected)</span>`;
+            }, 2800);
+        }
+
+        function showReport(title, blockage, status, desc) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalBlockage').innerText = blockage;
+            document.getElementById('modalStatus').innerText = status;
+            document.getElementById('modalDesc').innerText = desc;
+            document.getElementById('reportModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('reportModal').classList.add('hidden');
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else if (document.exitFullscreen) document.exitFullscreen();
+        }
+
+        function dispatchAlert() {
+            const box = document.createElement('div');
+            box.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+            box.innerHTML = `
+                <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-center space-y-4">
+                    <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-xl font-bold">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </div>
+                    <h3 class="font-black text-slate-800 text-base">Eskalasi Berhasil Dikirim</h3>
+                    <p class="text-xs text-slate-600">Pemberitahuan darurat telah diteruskan ke Tim Satgas Banjir Tel-U & Bojongsoang.</p>
+                    <button onclick="this.parentElement.parentElement.remove()" class="w-full py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700">Tutup</button>
+                </div>
+            `;
+            document.body.appendChild(box);
+        }
+    </script>
+</body>
+</html>
